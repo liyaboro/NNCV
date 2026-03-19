@@ -4,4 +4,4 @@ data/
 env-NNCV/
 .env
 media/
-.tar
+*.tar
