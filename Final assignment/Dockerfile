@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 
 
 # create virtual environment
-RUN python3 -m venv /opt/venv
+RUN python3 -m venv /opt/venv --system-site-packages
 ENV PATH="/opt/venv/bin:$PATH"
 
 
