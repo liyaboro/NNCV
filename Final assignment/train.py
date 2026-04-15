@@ -146,7 +146,7 @@ def main(args):
     ).to(device)
 
     if args.pretrained_ckpt:
-        checkpoint = torch.load(args.pretrained_ckpt, map_location="cpu")
+        checkpoint = torch.load(args.pretrained_ckpt, map_location="cpu", weights_only=False)
 
         # Some checkpoints store the state dict directly,
         # others store it under "model_state"
