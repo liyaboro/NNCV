@@ -154,9 +154,9 @@ def main(args):
 
         missing_keys, unexpected_keys = model.model.load_state_dict(state_dict, strict=False)
 
-        print("Loaded pretrained checkpoint.")
-        print(f"Missing keys: {missing_keys}")
-        print(f"Unexpected keys: {unexpected_keys}")
+        print("Loaded pretrained checkpoint.", flush = True)
+        print(f"Missing keys: {missing_keys}", flush = True)
+        print(f"Unexpected keys: {unexpected_keys}", flush = True)
 
     # Define the loss function
     criterion = nn.CrossEntropyLoss(ignore_index=255)  # Ignore the void class
@@ -168,7 +168,7 @@ def main(args):
     best_valid_loss = float('inf')
     current_best_model_path = None
     for epoch in range(args.epochs):
-        print(f"Epoch {epoch+1:04}/{args.epochs:04}")
+        print(f"Epoch {epoch+1:04}/{args.epochs:04}", flush = True)
 
         # Training
         model.train()
@@ -241,7 +241,7 @@ def main(args):
                 )
                 torch.save(model.state_dict(), current_best_model_path)
         
-    print("Training complete!")
+    print("Training complete!", flush = True)
 
     # Save the model
     torch.save(
