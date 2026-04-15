@@ -40,6 +40,7 @@ class Model(nn.Module):
             self.model = modeling.deeplabv3plus_resnet101(
                 num_classes=n_classes,
                 output_stride=output_stride,
+                pretrained_backbone=False,
             )
         else:
             raise ValueError(f"Unsupported backbone: {backbone}")
