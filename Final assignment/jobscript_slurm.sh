@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks=118
+#SBATCH --ntasks=18
 #SBATCH --gpus=1
 #SBATCH --partition=gpu_a100
 #SBATCH --time=04:00:00
