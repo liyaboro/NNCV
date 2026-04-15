@@ -177,4 +177,10 @@ data/
 env-NNCV
 media/
 *.tar
+
+checkpoints/
 *.pt
+*.pth
+*.wandb
+slurm-*.out
+home/scur2182/NNCV/Final assignment/wandb/

@@ -5,4 +5,9 @@ env-NNCV/
 .env
 media/
 *.tar
+checkpoints/
 *.pt
+*.pth
+*.wandb
+slurm-*.out
+home/scur2182/NNCV/Final assignment/wandb/

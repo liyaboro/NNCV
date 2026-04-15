@@ -1,10 +1,11 @@
 wandb login
 
-python3 train.py \
+python3 -u train.py \
     --data-dir ./data/cityscapes \
-    --batch-size 64 \
-    --epochs 100 \
-    --lr 0.001 \
+    --batch-size 32 \
+    --epochs 30 \
+    --lr 1e-4 \
     --num-workers 10 \
     --seed 42 \
-    --experiment-id "unet-training" \
+    --experiment-id "deeplabv3plus-resnet101-ft-baseline-test" \
+    --pretrained-ckpt ./checkpoints/deeplab_resnet101_os16_base.pth.tar
