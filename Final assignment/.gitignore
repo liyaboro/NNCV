@@ -5,4 +5,4 @@ env-NNCV/
 .env
 media/
 *.tar
-.pt
+*.pt
