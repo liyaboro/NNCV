@@ -66,7 +66,8 @@ def get_args_parser():
     parser.add_argument("--num-workers", type=int, default=10, help="Number of workers for data loaders")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--experiment-id", type=str, default="unet-training", help="Experiment ID for Weights & Biases")
-
+    parser.add_argument("--pretrained-ckpt", type=str, default="", help="Path to pretrained DeepLabV3+ checkpoint"
+)
     return parser
 
 
@@ -143,6 +144,19 @@ def main(args):
         in_channels=3,  # RGB images
         n_classes=19,  # 19 classes in the Cityscapes dataset
     ).to(device)
+
+    if args.pretrained_ckpt:
+        checkpoint = torch.load(args.pretrained_ckpt, map_location="cpu")
+
+        # Some checkpoints store the state dict directly,
+        # others store it under "model_state"
+        state_dict = checkpoint["model_state"] if "model_state" in checkpoint else checkpoint
+
+        missing_keys, unexpected_keys = model.model.load_state_dict(state_dict, strict=False)
+
+        print("Loaded pretrained checkpoint.")
+        print(f"Missing keys: {missing_keys}")
+        print(f"Unexpected keys: {unexpected_keys}")
 
     # Define the loss function
     criterion = nn.CrossEntropyLoss(ignore_index=255)  # Ignore the void class
