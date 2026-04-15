@@ -37,15 +37,19 @@ def preprocess(img: Image.Image) -> torch.Tensor:
     # Implement your preprocessing steps here
     # For example, resizing, normalization, etc.
     # Return a tensor suitable for model input
+
+    img = img.convert("RGB")
+
+
     transform = Compose([
         ToImage(),
         Resize(size=(256, 256), interpolation=InterpolationMode.BILINEAR),
         ToDtype(dtype=torch.float32, scale=True),
-        Normalize(mean=(0.5,), std=(0.5,)),
+        Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
     ])
 
     img = transform(img)
-    img = img.unsqueeze(0)  # Add batch dimension
+    img = img.unsqueeze(0)  # [1, 3, H, W], Adds batch dimension
     return img
 
 
@@ -57,8 +61,8 @@ def postprocess(pred: torch.Tensor, original_shape: tuple) -> np.ndarray:
     pred_max = torch.argmax(pred_soft, dim=1, keepdim=True)  # Get the class with the highest probability
     prediction = Resize(size=original_shape, interpolation=InterpolationMode.NEAREST)(pred_max)
 
-    prediction_numpy = prediction.cpu().detach().numpy()
-    prediction_numpy = prediction_numpy.squeeze()  # Remove batch and channel dimensions if necessary
+    pred = prediction.squeeze(0).squeeze(0)
+    prediction_numpy = pred.cpu().detach().numpy().astype(np.uint8)
 
     return prediction_numpy
 
@@ -80,11 +84,11 @@ def main():
     model.eval().to(device)
 
     image_files = list(Path(IMAGE_DIR).glob("*.png"))  # DO NOT CHANGE, IMAGES WILL BE PROVIDED IN THIS FORMAT
-    print(f"Found {len(image_files)} images to process.")
+    print(f"Found {len(image_files)} images to process.", flush=True)
 
     with torch.no_grad():
         for img_path in image_files:
-            img = Image.open(img_path)
+            img = Image.open(img_path).convert("RGB")
             original_shape = np.array(img).shape[:2]
 
             # Preprocess
