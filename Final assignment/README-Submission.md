@@ -150,4 +150,4 @@ docker save -o submission_efficiency.tar nncv-submission:efficiency
 
 ---
 
-Good practice: test the containe
+Good practice: test the container locally end-to-end before every submission.
