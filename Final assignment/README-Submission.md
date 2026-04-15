@@ -53,7 +53,7 @@ Copy-Item "Final assignment\checkpoints\unet-training\best_model-epoch=....pt" "
 From repo root:
 
 ```bash
-docker build -t nncv-submission:latest -f "Final assignment/Dockerfile" "Final assignment"
+docker build --platform linux/amd64 -t nncv-submission:latest -f "Final assignment/Dockerfile" "Final assignment"
 ```
 
 This creates a self-contained image with:
@@ -72,7 +72,7 @@ Create local folders:
 Run (Linux/macOS shell):
 
 ```bash
-docker run --rm \
+docker run --rm --platform linux/amd64 \
   -v "$(pwd)/local_data:/data" \
   -v "$(pwd)/local_output:/output" \
   nncv-submission:latest

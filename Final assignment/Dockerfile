@@ -26,5 +26,6 @@ WORKDIR /app
 COPY predict.py /app/predict.py
 COPY model.py /app/model.py
 COPY model.pt /app/model.pt
+COPY deeplab /app/deeplab
 
 ENTRYPOINT ["python", "/app/predict.py"]
