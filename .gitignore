@@ -177,3 +177,4 @@ data/
 env-NNCV
 media/
 *.tar
+.pt
