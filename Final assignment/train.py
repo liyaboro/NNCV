@@ -33,6 +33,7 @@ from torchvision.transforms.v2 import (
 )
 from torchvision.transforms import RandomCrop, CenterCrop
 from torchvision.transforms.functional import crop
+import torch.nn.functional as F
 
 from model import Model
 
@@ -144,7 +145,44 @@ class JointDeterministicValCityscapes(torch.utils.data.Dataset):
 
         return image, target
 
+class DiceLoss(nn.Module):
+    def __init__(self, num_classes: int, ignore_index: int = 255, smooth: float = 1e-6):
+        super().__init__()
+        self.num_classes = num_classes
+        self.ignore_index = ignore_index
+        self.smooth = smooth
 
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        logits: [B, C, H, W]
+        targets: [B, H, W] with values in {0, ..., C-1} or ignore_index
+        """
+        probs = F.softmax(logits, dim=1)  # [B, C, H, W]
+
+        valid_mask = (targets != self.ignore_index)  # [B, H, W]
+
+        # Replace ignored labels temporarily so one_hot works
+        safe_targets = targets.clone()
+        safe_targets[~valid_mask] = 0
+
+        target_one_hot = F.one_hot(safe_targets, num_classes=self.num_classes)  # [B, H, W, C]
+        target_one_hot = target_one_hot.permute(0, 3, 1, 2).float()  # [B, C, H, W]
+
+        # Zero out ignored pixels in both prediction and target
+        valid_mask = valid_mask.unsqueeze(1)  # [B, 1, H, W]
+        probs = probs * valid_mask
+        target_one_hot = target_one_hot * valid_mask
+
+        # Compute Dice per class over batch + spatial dims
+        dims = (0, 2, 3)
+        intersection = torch.sum(probs * target_one_hot, dims)
+        denominator = torch.sum(probs, dims) + torch.sum(target_one_hot, dims)
+
+        dice_per_class = (2.0 * intersection + self.smooth) / (denominator + self.smooth)
+        dice_loss = 1.0 - dice_per_class.mean()
+
+        return dice_loss
+        
 def get_args_parser():
 
     parser = ArgumentParser("Training script for a PyTorch U-Net model")
@@ -241,8 +279,10 @@ def main(args):
         print(f"Missing keys: {missing_keys}", flush = True)
         print(f"Unexpected keys: {unexpected_keys}", flush = True)
 
-    # Define the loss function
-    criterion = nn.CrossEntropyLoss(ignore_index=255)  # Ignore the void class
+    # Define the loss functions
+    #criterion = nn.CrossEntropyLoss(ignore_index=255)  # Ignore the void class
+    ce_loss = nn.CrossEntropyLoss(ignore_index=255)
+    dice_loss = DiceLoss(num_classes=19, ignore_index=255)
 
     # Define the optimizer
     optimizer = AdamW(model.parameters(), lr=args.lr)
@@ -264,12 +304,17 @@ def main(args):
 
             optimizer.zero_grad()
             outputs = model(images)
-            loss = criterion(outputs, labels)
+            #loss = criterion(outputs, labels)
+            loss_ce = ce_loss(outputs, labels)
+            loss_dice = dice_loss(outputs, labels)
+            loss = loss_ce + 0.5*loss_dice
             loss.backward()
             optimizer.step()
 
             wandb.log({
                 "train_loss": loss.item(),
+                "train_ce_loss": loss_ce.item(),
+                "train_dice_loss": loss_dice.item(),
                 "learning_rate": optimizer.param_groups[0]['lr'],
                 "epoch": epoch + 1,
             }, step=epoch * len(train_dataloader) + i)
@@ -277,7 +322,9 @@ def main(args):
         # Validation
         model.eval()
         with torch.no_grad():
-            losses = []
+            valid_ce_losses = []
+            valid_dice_losses = []
+            valid_total_losses = []
             for i, (images, labels) in enumerate(valid_dataloader):
 
                 labels = convert_to_train_id(labels)  # Convert class IDs to train IDs
@@ -286,8 +333,14 @@ def main(args):
                 labels = labels.long().squeeze(1)  # Remove channel dimension
 
                 outputs = model(images)
-                loss = criterion(outputs, labels)
-                losses.append(loss.item())
+                #loss = criterion(outputs, labels)
+                loss_ce = ce_loss(outputs, labels)
+                loss_dice = dice_loss(outputs, labels)
+                loss = loss_ce + 0.5*loss_dice
+
+                valid_ce_losses.append(loss_ce.item())
+                valid_dice_losses.append(loss_dice.item())
+                valid_total_losses.append(loss.item())
             
                 if i == 0:
                     predictions = outputs.softmax(1).argmax(1)
@@ -309,9 +362,14 @@ def main(args):
                         "labels": [wandb.Image(labels_img)],
                     }, step=(epoch + 1) * len(train_dataloader) - 1)
             
-            valid_loss = sum(losses) / len(losses)
+            valid_ce_loss = sum(valid_ce_losses) / len(valid_ce_losses)
+            valid_dice_loss = sum(valid_dice_losses) / len(valid_dice_losses)
+            valid_loss = sum(valid_total_losses) / len(valid_total_losses)
+
             wandb.log({
-                "valid_loss": valid_loss
+                "valid_loss": valid_loss,
+                "valid_ce_loss": valid_ce_loss,
+                "valid_dice_loss": valid_dice_loss,
             }, step=(epoch + 1) * len(train_dataloader) - 1)
 
             if valid_loss < best_valid_loss:
@@ -324,7 +382,7 @@ def main(args):
                 )
                 torch.save(model.state_dict(), current_best_model_path)
         
-    print(f"Training complete! Saved best model to: best_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt" , flush = True)
+    print(f"Training complete! Saved best model to: best_model-epoch=xx?-val_loss={best_valid_loss:04}.pt" , flush = True)
 
     # Save the model
     torch.save(

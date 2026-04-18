@@ -7,5 +7,5 @@ python3 -u train.py \
     --lr 1e-4 \
     --num-workers 10 \
     --seed 42 \
-    --experiment-id "deeplab-resnet101-ft-baseline-randomcrop" \
+    --experiment-id "deeplab-resnet101-ft-baseline-rc+dice" \
     --pretrained-ckpt ./checkpoints/deeplab_resnet101_os16_base.pth.tar
