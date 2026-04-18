@@ -184,3 +184,4 @@ checkpoints/
 *.wandb
 slurm-*.out
 home/scur2182/NNCV/Final assignment/wandb/
+Submission Assets/
