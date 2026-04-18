@@ -241,7 +241,7 @@ def main(args):
                 )
                 torch.save(model.state_dict(), current_best_model_path)
         
-    print("Training complete!", flush = True)
+    print(f"Training complete! Saved best model to: best_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt" , flush = True)
 
     # Save the model
     torch.save(
