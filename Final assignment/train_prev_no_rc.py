@@ -31,8 +31,6 @@ from torchvision.transforms.v2 import (
     InterpolationMode,
     RandomCrop
 )
-from torchvision.transforms import RandomCrop, CenterCrop
-from torchvision.transforms.functional import crop
 
 from model import Model
 
@@ -57,92 +55,6 @@ def convert_train_id_to_color(prediction: torch.Tensor) -> torch.Tensor:
             color_image[:, i][mask] = color[i]
 
     return color_image
-
-class JointRandomCropCityscapes(torch.utils.data.Dataset):
-    """
-    Applies the same random crop to both image and target.
-    Intended for training.
-    """
-    def __init__(self, base_dataset, crop_size=(512, 512)):
-        self.base_dataset = base_dataset
-        self.crop_size = crop_size
-
-        self.img_transform = Compose([
-            ToImage(),
-            ToDtype(torch.float32, scale=True),
-            Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
-
-        self.target_transform = Compose([
-            ToImage(),
-            ToDtype(torch.int64),
-        ])
-
-    def __len__(self):
-        return len(self.base_dataset)
-
-    def __getitem__(self, idx):
-        image, target = self.base_dataset[idx]
-
-        i, j, h, w = RandomCrop.get_params(image, output_size=self.crop_size)
-
-        image = crop(image, i, j, h, w)
-        target = crop(target, i, j, h, w)
-
-        image = self.img_transform(image)
-        target = self.target_transform(target)
-
-        return image, target
-
-
-class JointDeterministicValCityscapes(torch.utils.data.Dataset):
-    """
-    Applies a deterministic transform to both image and target.
-    Intended for validation.
-
-    If the image is large enough, use CenterCrop(crop_size).
-    Otherwise, resize to crop_size.
-    """
-    def __init__(self, base_dataset, crop_size=(512, 512)):
-        self.base_dataset = base_dataset
-        self.crop_size = crop_size
-
-        self.img_to_tensor = Compose([
-            ToImage(),
-            ToDtype(torch.float32, scale=True),
-            Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
-
-        self.target_to_tensor = Compose([
-            ToImage(),
-            ToDtype(torch.int64),
-        ])
-
-        self.resize_img = Resize(crop_size, interpolation=InterpolationMode.BILINEAR)
-        self.resize_target = Resize(crop_size, interpolation=InterpolationMode.NEAREST)
-
-        self.center_crop = CenterCrop(crop_size)
-
-    def __len__(self):
-        return len(self.base_dataset)
-
-    def __getitem__(self, idx):
-        image, target = self.base_dataset[idx]
-
-        width, height = image.size
-        crop_h, crop_w = self.crop_size
-
-        if height >= crop_h and width >= crop_w:
-            image = self.center_crop(image)
-            target = self.center_crop(target)
-        else:
-            image = self.resize_img(image)
-            target = self.resize_target(target)
-
-        image = self.img_to_tensor(image)
-        target = self.target_to_tensor(target)
-
-        return image, target
 
 
 def get_args_parser():
@@ -181,32 +93,38 @@ def main(args):
     # Define the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Load raw Cityscapes datasets
-    train_base_dataset = Cityscapes(
-        args.data_dir,
-        split="train",
-        mode="fine",
-        target_type="semantic",
+    # Define the transforms to apply to the data
+    img_transform = Compose([
+    ToImage(),
+    RandomCrop((512, 512)),
+    ToDtype(torch.float32, scale=True),
+    Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    # Target transform (mask)
+    target_transform = Compose([
+        ToImage(),
+        RandomCrop((512, 512)),
+        ToDtype(torch.int64),  # no scaling
+    ])
+
+    # Load the dataset and make a split for training and validation
+    train_dataset = Cityscapes(
+    args.data_dir,
+    split="train",
+    mode="fine",
+    target_type="semantic",
+    transform=img_transform,
+    target_transform=target_transform,
     )
 
-    valid_base_dataset = Cityscapes(
+    valid_dataset = Cityscapes(
         args.data_dir,
         split="val",
         mode="fine",
         target_type="semantic",
-    )
-
-    # Final transform setup:
-    # - training: joint random crop
-    # - validation: joint deterministic crop/resize
-    train_dataset = JointRandomCropCityscapes(
-        train_base_dataset,
-        crop_size=(512, 512),
-    )
-
-    valid_dataset = JointDeterministicValCityscapes(
-        valid_base_dataset,
-        crop_size=(512, 512),
+        transform=img_transform,
+        target_transform=target_transform,
     )
 
     train_dataloader = DataLoader(
