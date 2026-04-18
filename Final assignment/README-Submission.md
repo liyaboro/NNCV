@@ -76,6 +76,11 @@ docker run --rm --platform linux/amd64 \
   -v "$(pwd)/local_data:/data" \
   -v "$(pwd)/local_output:/output" \
   nncv-submission:latest
+
+docker run --rm --platform linux/amd64 \
+  -v "$HOME/Code/docker_test/local_data:/data" \
+  -v "$HOME/Code/docker_test/local_output:/output" \
+  nncv-submission:latest
 ```
 
 Run (Windows PowerShell):
