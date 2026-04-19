@@ -36,7 +36,7 @@ from torchvision.transforms.functional import crop
 import torch.nn.functional as F
 import numpy as np
 
-from model import Model
+from model_ood import Model
 
 
 # Mapping class IDs to train IDs
