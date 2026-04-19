@@ -39,11 +39,14 @@ def preprocess(img: Image.Image) -> torch.Tensor:
     # Implement your preprocessing steps here
     # For example, resizing, normalization, etc.
     # Return a tensor suitable for model input
+
+    img = img.convert("RGB")
+
     transform = Compose([
         ToImage(),
-        Resize(size=(256, 256), interpolation=InterpolationMode.BILINEAR),
+        Resize(size=(512, 1024), interpolation=InterpolationMode.BILINEAR),
         ToDtype(dtype=torch.float32, scale=True),
-        Normalize(mean=(0.5,), std=(0.5,)),
+        Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
     ])
 
     img = transform(img)
@@ -59,8 +62,8 @@ def postprocess(pred: torch.Tensor, original_shape: tuple) -> np.ndarray:
     pred_max = torch.argmax(pred_soft, dim=1, keepdim=True)  # Get the class with the highest probability
     prediction = Resize(size=original_shape, interpolation=InterpolationMode.NEAREST)(pred_max)
 
-    prediction_numpy = prediction.cpu().detach().numpy()
-    prediction_numpy = prediction_numpy.squeeze()  # Remove batch and channel dimensions if necessary
+    pred = prediction.squeeze(0).squeeze(0)
+    prediction_numpy = pred.cpu().detach().numpy().astype(np.uint8)
 
     return prediction_numpy
 
@@ -70,12 +73,15 @@ def main():
 
     # Load model
     model = Model()
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+
+    state_dict = torch.load(MODEL_PATH, map_location=device)
+    model.load_state_dict(state_dict, strict=True)
+
     model.eval().to(device)
 
     image_files = list(Path(IMAGE_DIR).glob("**/*.png"))
 
-    print(f"Found {len(image_files)} images to process.")
+    print(f"Found {len(image_files)} images to process.", flush=True)
 
     # Create output directory
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -86,7 +92,7 @@ def main():
 
     with torch.no_grad():
         for img_path in image_files:
-            img = Image.open(img_path)
+            img = Image.open(img_path).convert("RGB")
             original_shape = np.array(img).shape[:2]
 
             # Preprocess
@@ -110,7 +116,7 @@ def main():
             # Record prediction
             predictions.append({
                 'image_name': str(relative_path).replace('\\', '/'),
-                'include': bool(include_decision)
+                'include': bool(include_decision.item() if torch.is_tensor(include_decision) else include_decision)
             })
 
     # Write predictions to CSV
