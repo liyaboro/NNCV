@@ -279,9 +279,15 @@ def main(args):
         # others store it under "model_state"
         state_dict = checkpoint["model_state"] if "model_state" in checkpoint else checkpoint
 
-        missing_keys, unexpected_keys = model.model.load_state_dict(state_dict, strict=False)
+        if args.mode == "seg":
+            # GitHub / plain DeepLab checkpoint
+            missing_keys, unexpected_keys = model.model.load_state_dict(state_dict, strict=False)
+            print("Loaded pretrained segmentation checkpoint.", flush=True)
+        else:
+            # OOD stage: load the saved segmentation run checkpoint into the FULL model
+            missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+            print("Loaded pretrained full segmentation model for OOD stage.", flush=True)
 
-        print("Loaded pretrained  segmentation checkpoint.", flush = True)
         print(f"Missing keys: {missing_keys}", flush = True)
         print(f"Unexpected keys: {unexpected_keys}", flush = True)
 
@@ -391,7 +397,7 @@ def main(args):
 
                 if valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
-                    best_epoch = epoch
+                    best_epoch = epoch + 1
                     
                     if current_best_model_path:
                         os.remove(current_best_model_path)
@@ -464,6 +470,7 @@ def main(args):
 
                 if valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
+                    best_epoch = epoch + 1
                     if current_best_model_path:
                         os.remove(current_best_model_path)
                     current_best_model_path = os.path.join(
