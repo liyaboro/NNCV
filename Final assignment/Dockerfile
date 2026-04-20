@@ -34,4 +34,4 @@ COPY model.pt /app/model.pt
 COPY deeplab /app/deeplab
 
 
-ENTRYPOINT ["python", "/app/predict_ood.py"]
+ENTRYPOINT ["python", "/app/predict.py"]
