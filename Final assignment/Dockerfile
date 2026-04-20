@@ -23,9 +23,15 @@ RUN pip install --no-cache-dir \
     pillow
 
 WORKDIR /app
-COPY predict.py /app/predict.py
-COPY model.py /app/model.py
+#COPY predict.py /app/predict.py
+#COPY model.py /app/model.py
+#COPY model.pt /app/model.pt
+
+#For ood model
+COPY predict_ood.py /app/predict.py
+COPY model_ood.py /app/model.py
 COPY model.pt /app/model.pt
 COPY deeplab /app/deeplab
 
-ENTRYPOINT ["python", "/app/predict.py"]
+
+ENTRYPOINT ["python", "/app/predict_ood.py"]
