@@ -310,176 +310,180 @@ def main(args):
     current_best_model_path = None
     best_epoch = -1
 
-    for epoch in range(args.epochs):
-        print(f"Epoch {epoch+1:04}/{args.epochs:04}", flush = True)
-        if args.mode == "seg":
-            # -------------------------
-            # Segmentation training
-            # -------------------------
-            # Training
-            model.train()
-            for i, (images, labels) in enumerate(train_dataloader):
-
-                labels = convert_to_train_id(labels)  # Convert class IDs to train IDs
-                images, labels = images.to(device), labels.to(device)
-
-                labels = labels.long().squeeze(1)  # Remove channel dimension
-
-                optimizer.zero_grad()
-                outputs = model.forward_seg_with_aspp(images)[0]
-                #loss = criterion(outputs, labels)
-                loss_ce = ce_loss(outputs, labels)
-                loss_dice = dice_loss(outputs, labels)
-                loss = loss_ce + 0.5*loss_dice
-                loss.backward()
-                optimizer.step()
-
-                wandb.log({
-                    f"{args.mode}/train_loss": loss.item(),
-                    f"{args.mode}/train_ce_loss": loss_ce.item(),
-                    f"{args.mode}/train_dice_loss": loss_dice.item(),
-                    f"{args.mode}/learning_rate": optimizer.param_groups[0]['lr'],
-                    f"{args.mode}/epoch": epoch + 1,
-                }, step=epoch * len(train_dataloader) + i)
-                
-            # Validation
-            model.eval()
-            with torch.no_grad():
-                valid_ce_losses = []
-                valid_dice_losses = []
-                valid_total_losses = []
-                for i, (images, labels) in enumerate(valid_dataloader):
+    if args.mode == "ood" and args.epochs == 0:
+        print("Skipping OOD training, recomputing threshold only.", flush=True)
+        current_best_model_path = args.pretrained_ckpt
+    else:
+        for epoch in range(args.epochs):
+            print(f"Epoch {epoch+1:04}/{args.epochs:04}", flush = True)
+            if args.mode == "seg":
+                # -------------------------
+                # Segmentation training
+                # -------------------------
+                # Training
+                model.train()
+                for i, (images, labels) in enumerate(train_dataloader):
 
                     labels = convert_to_train_id(labels)  # Convert class IDs to train IDs
                     images, labels = images.to(device), labels.to(device)
 
                     labels = labels.long().squeeze(1)  # Remove channel dimension
 
+                    optimizer.zero_grad()
                     outputs = model.forward_seg_with_aspp(images)[0]
                     #loss = criterion(outputs, labels)
                     loss_ce = ce_loss(outputs, labels)
                     loss_dice = dice_loss(outputs, labels)
                     loss = loss_ce + 0.5*loss_dice
+                    loss.backward()
+                    optimizer.step()
 
-                    valid_ce_losses.append(loss_ce.item())
-                    valid_dice_losses.append(loss_dice.item())
-                    valid_total_losses.append(loss.item())
-                
-                    if i == 0:
-                        predictions = outputs.softmax(1).argmax(1)
-
-                        predictions = predictions.unsqueeze(1)
-                        labels_vis = labels.unsqueeze(1)
-
-                        predictions = convert_train_id_to_color(predictions)
-                        labels_vis = convert_train_id_to_color(labels_vis)
-
-                        predictions_img = make_grid(predictions.cpu(), nrow=8)
-                        labels_img = make_grid(labels_vis.cpu(), nrow=8)
-
-                        predictions_img = predictions_img.permute(1, 2, 0).numpy()
-                        labels_img = labels_img.permute(1, 2, 0).numpy()
-
-                        wandb.log({
-                            "predictions": [wandb.Image(predictions_img)],
-                            "labels": [wandb.Image(labels_img)],
-                        }, step=(epoch + 1) * len(train_dataloader) - 1)
-                
-                valid_ce_loss = sum(valid_ce_losses) / len(valid_ce_losses)
-                valid_dice_loss = sum(valid_dice_losses) / len(valid_dice_losses)
-                valid_loss = sum(valid_total_losses) / len(valid_total_losses)
-
-                wandb.log({
-                    f"{args.mode}/valid_loss": valid_loss,
-                    f"{args.mode}/valid_ce_loss": valid_ce_loss,
-                    f"{args.mode}/valid_dice_loss": valid_dice_loss,
-                }, step=(epoch + 1) * len(train_dataloader) - 1)
-
-                if valid_loss < best_valid_loss:
-                    best_valid_loss = valid_loss
-                    best_epoch = epoch + 1
+                    wandb.log({
+                        f"{args.mode}/train_loss": loss.item(),
+                        f"{args.mode}/train_ce_loss": loss_ce.item(),
+                        f"{args.mode}/train_dice_loss": loss_dice.item(),
+                        f"{args.mode}/learning_rate": optimizer.param_groups[0]['lr'],
+                        f"{args.mode}/epoch": epoch + 1,
+                    }, step=epoch * len(train_dataloader) + i)
                     
-                    if current_best_model_path:
-                        os.remove(current_best_model_path)
-                    current_best_model_path = os.path.join(
-                        output_dir, 
-                        f"best_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt"
-                    )
-                    torch.save(model.state_dict(), current_best_model_path)
-
-        else:
-        # -------------------------
-        # OOD / VAE-head training
-        # -------------------------
-            model.train()
-            for i, (images, _) in enumerate(train_dataloader):
-                images = images.to(device)
-
-                optimizer.zero_grad()
-
+                # Validation
+                model.eval()
                 with torch.no_grad():
-                    _, aspp_up = model.forward_seg_with_aspp(images)
+                    valid_ce_losses = []
+                    valid_dice_losses = []
+                    valid_total_losses = []
+                    for i, (images, labels) in enumerate(valid_dataloader):
 
-                recon, mu, logvar = model.vae(aspp_up)
+                        labels = convert_to_train_id(labels)  # Convert class IDs to train IDs
+                        images, labels = images.to(device), labels.to(device)
 
-                rec_loss = F.mse_loss(recon, aspp_up)
-                kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-                loss = rec_loss + args.vae_beta * kl_loss
+                        labels = labels.long().squeeze(1)  # Remove channel dimension
 
-                loss.backward()
-                optimizer.step()
+                        outputs = model.forward_seg_with_aspp(images)[0]
+                        #loss = criterion(outputs, labels)
+                        loss_ce = ce_loss(outputs, labels)
+                        loss_dice = dice_loss(outputs, labels)
+                        loss = loss_ce + 0.5*loss_dice
 
-                wandb.log({
-                    f"{args.mode}/train_loss": loss.item(),
-                    f"{args.mode}/train_rec_loss": rec_loss.item(),
-                    f"{args.mode}/train_kl_loss": kl_loss.item(),
-                    f"{args.mode}/learning_rate": optimizer.param_groups[0]['lr'],
-                    f"{args.mode}/epoch": epoch + 1,
-                }, step=epoch * len(train_dataloader) + i)
+                        valid_ce_losses.append(loss_ce.item())
+                        valid_dice_losses.append(loss_dice.item())
+                        valid_total_losses.append(loss.item())
+                    
+                        if i == 0:
+                            predictions = outputs.softmax(1).argmax(1)
 
-            # Validation
-            model.eval()
-            with torch.no_grad():
-                valid_total_losses = []
-                valid_rec_losses = []
-                valid_kl_losses = []
+                            predictions = predictions.unsqueeze(1)
+                            labels_vis = labels.unsqueeze(1)
 
-                for i, (images, _) in enumerate(valid_dataloader):
+                            predictions = convert_train_id_to_color(predictions)
+                            labels_vis = convert_train_id_to_color(labels_vis)
+
+                            predictions_img = make_grid(predictions.cpu(), nrow=8)
+                            labels_img = make_grid(labels_vis.cpu(), nrow=8)
+
+                            predictions_img = predictions_img.permute(1, 2, 0).numpy()
+                            labels_img = labels_img.permute(1, 2, 0).numpy()
+
+                            wandb.log({
+                                "predictions": [wandb.Image(predictions_img)],
+                                "labels": [wandb.Image(labels_img)],
+                            }, step=(epoch + 1) * len(train_dataloader) - 1)
+                    
+                    valid_ce_loss = sum(valid_ce_losses) / len(valid_ce_losses)
+                    valid_dice_loss = sum(valid_dice_losses) / len(valid_dice_losses)
+                    valid_loss = sum(valid_total_losses) / len(valid_total_losses)
+
+                    wandb.log({
+                        f"{args.mode}/valid_loss": valid_loss,
+                        f"{args.mode}/valid_ce_loss": valid_ce_loss,
+                        f"{args.mode}/valid_dice_loss": valid_dice_loss,
+                    }, step=(epoch + 1) * len(train_dataloader) - 1)
+
+                    if valid_loss < best_valid_loss:
+                        best_valid_loss = valid_loss
+                        best_epoch = epoch + 1
+                        
+                        if current_best_model_path:
+                            os.remove(current_best_model_path)
+                        current_best_model_path = os.path.join(
+                            output_dir, 
+                            f"best_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt"
+                        )
+                        torch.save(model.state_dict(), current_best_model_path)
+
+            else:
+            # -------------------------
+            # OOD / VAE-head training
+            # -------------------------
+                model.train()
+                for i, (images, _) in enumerate(train_dataloader):
                     images = images.to(device)
 
-                    _, aspp_up = model.forward_seg_with_aspp(images)
+                    optimizer.zero_grad()
+
+                    with torch.no_grad():
+                        _, aspp_up = model.forward_seg_with_aspp(images)
+
                     recon, mu, logvar = model.vae(aspp_up)
 
                     rec_loss = F.mse_loss(recon, aspp_up)
                     kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
                     loss = rec_loss + args.vae_beta * kl_loss
 
-                    valid_total_losses.append(loss.item())
-                    valid_rec_losses.append(rec_loss.item())
-                    valid_kl_losses.append(kl_loss.item())
+                    loss.backward()
+                    optimizer.step()
 
-                valid_loss = sum(valid_total_losses) / len(valid_total_losses)
-                valid_rec_loss = sum(valid_rec_losses) / len(valid_rec_losses)
-                valid_kl_loss = sum(valid_kl_losses) / len(valid_kl_losses)
+                    wandb.log({
+                        f"{args.mode}/train_loss": loss.item(),
+                        f"{args.mode}/train_rec_loss": rec_loss.item(),
+                        f"{args.mode}/train_kl_loss": kl_loss.item(),
+                        f"{args.mode}/learning_rate": optimizer.param_groups[0]['lr'],
+                        f"{args.mode}/epoch": epoch + 1,
+                    }, step=epoch * len(train_dataloader) + i)
 
-                wandb.log({
-                    f"{args.mode}/valid_loss": valid_loss,
-                    f"{args.mode}/valid_rec_loss": valid_rec_loss,
-                    f"{args.mode}/valid_kl_loss": valid_kl_loss,
-                }, step=(epoch + 1) * len(train_dataloader) - 1)
+                # Validation
+                model.eval()
+                with torch.no_grad():
+                    valid_total_losses = []
+                    valid_rec_losses = []
+                    valid_kl_losses = []
 
-                if valid_loss < best_valid_loss:
-                    best_valid_loss = valid_loss
-                    best_epoch = epoch + 1
-                    if current_best_model_path:
-                        os.remove(current_best_model_path)
-                    current_best_model_path = os.path.join(
-                        output_dir,
-                        f"best_ood_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt"
-                    )
-                    torch.save(model.state_dict(), current_best_model_path)
+                    for i, (images, _) in enumerate(valid_dataloader):
+                        images = images.to(device)
 
-        scheduler.step()
+                        _, aspp_up = model.forward_seg_with_aspp(images)
+                        recon, mu, logvar = model.vae(aspp_up)
+
+                        rec_loss = F.mse_loss(recon, aspp_up)
+                        kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+                        loss = rec_loss + args.vae_beta * kl_loss
+
+                        valid_total_losses.append(loss.item())
+                        valid_rec_losses.append(rec_loss.item())
+                        valid_kl_losses.append(kl_loss.item())
+
+                    valid_loss = sum(valid_total_losses) / len(valid_total_losses)
+                    valid_rec_loss = sum(valid_rec_losses) / len(valid_rec_losses)
+                    valid_kl_loss = sum(valid_kl_losses) / len(valid_kl_losses)
+
+                    wandb.log({
+                        f"{args.mode}/valid_loss": valid_loss,
+                        f"{args.mode}/valid_rec_loss": valid_rec_loss,
+                        f"{args.mode}/valid_kl_loss": valid_kl_loss,
+                    }, step=(epoch + 1) * len(train_dataloader) - 1)
+
+                    if valid_loss < best_valid_loss:
+                        best_valid_loss = valid_loss
+                        best_epoch = epoch + 1
+                        if current_best_model_path:
+                            os.remove(current_best_model_path)
+                        current_best_model_path = os.path.join(
+                            output_dir,
+                            f"best_ood_model-epoch={epoch:04}-val_loss={valid_loss:04}.pt"
+                        )
+                        torch.save(model.state_dict(), current_best_model_path)
+
+            scheduler.step()
             
     print(f"Training complete! Best validation loss: {best_valid_loss:04}", flush=True)
 
@@ -487,7 +491,7 @@ def main(args):
         # Load the best OOD model back into memory first
         print(f"Reloading best OOD model from: {current_best_model_path}", flush=True)
         best_state_dict = torch.load(current_best_model_path, map_location=device)
-        model.load_state_dict(best_state_dict, strict=True)
+        model.load_state_dict(best_state_dict, strict=False)
 
         # Compute threshold ONLY for this best model
         print("Computing OOD threshold from validation ID scores for BEST model...", flush=True)
