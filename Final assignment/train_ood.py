@@ -508,6 +508,23 @@ def main(args):
         threshold = float(np.percentile(val_scores, args.ood_threshold_percentile))
         model.set_ood_threshold(threshold)
 
+        val_scores_np = np.array(val_scores)
+
+        print("[DEBUG] threshold:", model.ood_threshold.item(), flush=True)
+        print(
+            "[DEBUG] all val score min/mean/max:",
+            val_scores_np.min(),
+            val_scores_np.mean(),
+            val_scores_np.max(),
+            flush=True,
+        )
+        print(
+            "[DEBUG] val score percentiles 50/80/90/95:",
+            np.percentile(val_scores_np, [50, 80, 90, 95]),
+            flush=True,
+        )
+
+        
         wandb.log({
             "ood/threshold": threshold,
         })
