@@ -99,6 +99,7 @@ class Model(nn.Module):
         backbone="resnet101",
         output_stride=16,
         latent_dim=64,
+        msp_weight=0.5,
     ):
         super().__init__()
 
@@ -123,6 +124,7 @@ class Model(nn.Module):
         self.n_classes = n_classes
         self.backbone_name = backbone
         self.output_stride = output_stride
+        self.msp_weight = msp_weight
 
         # VAE on ASPP-upsampled features
         self.vae = ASPPFeatureVAE(in_channels=256, latent_dim=latent_dim)
@@ -171,25 +173,35 @@ class Model(nn.Module):
     def compute_ood_score(self, aspp_up):
         recon, mu, logvar = self.vae(aspp_up)
 
-        # #mean pooling
-        # score = ((aspp_up - recon) ** 2).mean(dim=(1, 2, 3))
+        #mean pooling
+        score = ((aspp_up - recon) ** 2).mean(dim=(1, 2, 3))
 
-        #top-k pooling
-        # Per-pixel reconstruction error map:
-        # [B, C, H, W] -> [B, H, W]
-        error_map = ((aspp_up - recon) ** 2).mean(dim=1)
+        # #top-k pooling
+        # # Per-pixel reconstruction error map:
+        # # [B, C, H, W] -> [B, H, W]
+        # error_map = ((aspp_up - recon) ** 2).mean(dim=1)
 
-        # Flatten spatial dimensions: [B, H, W] -> [B, H*W]
-        error_flat = error_map.flatten(start_dim=1)
+        # # Flatten spatial dimensions: [B, H, W] -> [B, H*W]
+        # error_flat = error_map.flatten(start_dim=1)
 
-        # Take the top 5% highest-error locations
-        k = max(1, int(0.05 * error_flat.shape[1]))
-        topk_vals, _ = torch.topk(error_flat, k=k, dim=1)
+        # # Take the top 5% highest-error locations
+        # k = max(1, int(0.05 * error_flat.shape[1]))
+        # topk_vals, _ = torch.topk(error_flat, k=k, dim=1)
 
-        # Image-level score = mean of top-k errors
-        score = topk_vals.mean(dim=1)
+        # # Image-level score = mean of top-k errors
+        # score = topk_vals.mean(dim=1)
 
         return score, recon, mu, logvar
+    
+    def compute_msp_uncertainty(self, logits):
+        """
+        Computes image-level uncertainty from Maximum Softmax Probability.
+        Higher value = more uncertain = more OOD-like.
+        """
+        probs = torch.softmax(logits, dim=1)          # [B, C, H, W]
+        msp = probs.max(dim=1).values                 # [B, H, W]
+        uncertainty = 1.0 - msp.mean(dim=(1, 2))      # [B]
+        return uncertainty
     
     def forward(self, x):
         """
@@ -197,7 +209,12 @@ class Model(nn.Module):
             seg_logits, include_decision
         """
         logits, aspp_up = self.forward_seg_with_aspp(x)
-        score, _, _, _ = self.compute_ood_score(aspp_up)
+
+        vae_score, _, _, _ = self.compute_ood_score(aspp_up)
+        msp_uncertainty = self.compute_msp_uncertainty(logits)
+
+        score = vae_score + self.msp_weight * msp_uncertainty
+
         include = score < self.ood_threshold
         return logits, include
     
@@ -207,7 +224,12 @@ class Model(nn.Module):
             returns logits, aspp features, recon, mu, logvar, score
         """
         logits, aspp_up = self.forward_seg_with_aspp(x)
-        score, recon, mu, logvar = self.compute_ood_score(aspp_up)
+
+        vae_score, recon, mu, logvar = self.compute_ood_score(aspp_up)
+        msp_uncertainty = self.compute_msp_uncertainty(logits)
+
+        score = vae_score + self.msp_weight * msp_uncertainty
+
         return logits, aspp_up, recon, mu, logvar, score
     
     def freeze_segmentation(self):

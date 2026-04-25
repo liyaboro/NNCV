@@ -99,7 +99,6 @@ class Model(nn.Module):
         backbone="resnet101",
         output_stride=16,
         latent_dim=64,
-        msp_weight=0.5,
     ):
         super().__init__()
 
@@ -124,7 +123,6 @@ class Model(nn.Module):
         self.n_classes = n_classes
         self.backbone_name = backbone
         self.output_stride = output_stride
-        self.msp_weight = msp_weight
 
         # VAE on ASPP-upsampled features
         self.vae = ASPPFeatureVAE(in_channels=256, latent_dim=latent_dim)
@@ -193,28 +191,13 @@ class Model(nn.Module):
 
         return score, recon, mu, logvar
     
-    def compute_msp_uncertainty(self, logits):
-        """
-        Computes image-level uncertainty from Maximum Softmax Probability.
-        Higher value = more uncertain = more OOD-like.
-        """
-        probs = torch.softmax(logits, dim=1)          # [B, C, H, W]
-        msp = probs.max(dim=1).values                 # [B, H, W]
-        uncertainty = 1.0 - msp.mean(dim=(1, 2))      # [B]
-        return uncertainty
-    
     def forward(self, x):
         """
         Final inference interface for submission:
             seg_logits, include_decision
         """
         logits, aspp_up = self.forward_seg_with_aspp(x)
-
-        vae_score, _, _, _ = self.compute_ood_score(aspp_up)
-        msp_uncertainty = self.compute_msp_uncertainty(logits)
-
-        score = vae_score + self.msp_weight * msp_uncertainty
-
+        score, _, _, _ = self.compute_ood_score(aspp_up)
         include = score < self.ood_threshold
         return logits, include
     
@@ -224,12 +207,7 @@ class Model(nn.Module):
             returns logits, aspp features, recon, mu, logvar, score
         """
         logits, aspp_up = self.forward_seg_with_aspp(x)
-
-        vae_score, recon, mu, logvar = self.compute_ood_score(aspp_up)
-        msp_uncertainty = self.compute_msp_uncertainty(logits)
-
-        score = vae_score + self.msp_weight * msp_uncertainty
-
+        score, recon, mu, logvar = self.compute_ood_score(aspp_up)
         return logits, aspp_up, recon, mu, logvar, score
     
     def freeze_segmentation(self):
