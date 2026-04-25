@@ -502,10 +502,7 @@ def main(args):
             for images, _ in valid_dataloader:
                 images = images.to(device)
 
-                _, aspp_up = model.forward_seg_with_aspp(images)
-                recon, _, _ = model.vae(aspp_up)
-                scores = ((aspp_up - recon) ** 2).mean(dim=(1, 2, 3))
-
+                _, _, _, _, _, scores = model.forward_train_ood(images)
                 val_scores.extend(scores.cpu().numpy().tolist())
 
         threshold = float(np.percentile(val_scores, args.ood_threshold_percentile))
