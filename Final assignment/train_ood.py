@@ -247,9 +247,10 @@ def main(args):
         crop_size=(512, 512),
     )
 
+    valid_crop_size = (512, 1024) if args.mode == "ood" else (512, 512)
     valid_dataset = JointDeterministicValCityscapes(
         valid_base_dataset,
-        crop_size=(512, 512),
+        crop_size=valid_crop_size,
     )
 
     train_dataloader = DataLoader(
