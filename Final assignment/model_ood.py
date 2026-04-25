@@ -171,24 +171,23 @@ class Model(nn.Module):
     def compute_ood_score(self, aspp_up):
         recon, mu, logvar = self.vae(aspp_up)
 
-        #mean pooling
-        score = ((aspp_up - recon) ** 2).mean(dim=(1, 2, 3))
+        # #mean pooling
+        # score = ((aspp_up - recon) ** 2).mean(dim=(1, 2, 3))
 
-        # #top-k pooling
+        #top-k pooling
+        # Per-pixel reconstruction error map:
+        # [B, C, H, W] -> [B, H, W]
+        error_map = ((aspp_up - recon) ** 2).mean(dim=1)
 
-        # # Per-pixel reconstruction error map:
-        # # [B, C, H, W] -> [B, H, W]
-        # error_map = ((aspp_up - recon) ** 2).mean(dim=1)
+        # Flatten spatial dimensions: [B, H, W] -> [B, H*W]
+        error_flat = error_map.flatten(start_dim=1)
 
-        # # Flatten spatial dimensions: [B, H, W] -> [B, H*W]
-        # error_flat = error_map.flatten(start_dim=1)
+        # Take the top 5% highest-error locations
+        k = max(1, int(0.05 * error_flat.shape[1]))
+        topk_vals, _ = torch.topk(error_flat, k=k, dim=1)
 
-        # # Take the top 5% highest-error locations
-        # k = max(1, int(0.05 * error_flat.shape[1]))
-        # topk_vals, _ = torch.topk(error_flat, k=k, dim=1)
-
-        # # Image-level score = mean of top-k errors
-        # score = topk_vals.mean(dim=1)
+        # Image-level score = mean of top-k errors
+        score = topk_vals.mean(dim=1)
 
         return score, recon, mu, logvar
     
