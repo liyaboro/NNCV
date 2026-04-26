@@ -1,85 +1,148 @@
-# Final Assignment: Cityscape Challenge  
+# Semantic Segmentation with OOD Detection (Cityscapes)
 
-Welcome to the **Cityscape Challenge**, the final project for this course!  
-
-In this assignment, you'll put your knowledge of Neural Networks (NNs) for computer vision into action by tackling real-world problems using the **CityScapes dataset**. This dataset contains large-scale, high-quality images of urban environments, making it perfect for tasks like **semantic segmentation** and **object detection**.  
-
-This challenge is designed to push your skills further, focusing on practical and often under-explored issues crucial for deploying computer vision models in real-world scenarios.  
+This repository contains the implementation of a semantic segmentation model based on DeepLabV3+, extended with an Out-of-Distribution (OOD) detection head. The project focuses on robust urban scene understanding using the Cityscapes dataset.
 
 ---
 
-## Benchmarks  
-
-The competition comprises four benchmarks, each targeting a specific aspect of model performance:  
-
-1. **Peak performance**  
-   This benchmark evaluates your model's segmentation accuracy on a clean, standardized test set. Your goal is to achieve the highest segmentation scores here. **Everyone should submit a model to this benchmark optimized for maximum performance**. However, it's crucial to implement changes thoughtfully and be able to justify them in your research paper. Ultimately, the focus should be on the scientific contributions of your adaptations rather than solely aiming for the highest score.
-
-The following benchmarks 2–4 are optional, and **you should select one** to compare against the Peak Performance benchmark. This allows you to analyze how your model performs under different conditions and gain deeper insights beyond just optimizing for the highest score.
-
-2. **Robustness**  
-   This benchmark tests how well your model performs under challenging conditions, such as changes in lighting, weather, or image quality. Consistency is key in this category.  
-
-3. **Efficiency**  
-   Practical applications often require compact models. This benchmark emphasizes creating smaller models that maintain acceptable performance. It’s particularly relevant for edge devices where large models are infeasible.  
-
-4. **Out-of-distribution detection**  
-   Models often encounter data that differs from the training distribution, leading to unreliable predictions. This benchmark evaluates your model's ability to detect and handle such out-of-distribution samples.  
-
-> **IMPORTANT NOTE**: The **Peak Permomance** benchmark will also serve as the baseline server, and all participants must submit a baseline model here. This means that you can just train the already provided model in the repo. The training code for this model is also already provided. The baseline submission serves two purposes: ensuring that everyone is familiar with working on an HPC cluster and providing a reference point for evaluating the impact of different adaptations in your other benchmark submissions (you need to show these improvements compared to the baseline in your report!). The Baseline benchmark will close on **Tuesday, March 17, at 11:59 P.M. (GMT+1)**. To avoid last-minute issues, start preparing your submission early. This will also give you time to ask questions during the scheduled computer classes if needed.
-
----
-
-## Deliverables  
-
-Your final submission will consist of the following:  
-
-### 1. Research paper  
-Write a **3-4 page research paper** in [IEEE double-column format](https://www.overleaf.com/latex/templates/ieee-conference-template/grfzhhncsfqn), addressing (at least) the following:  
-
-- **Abstract**: Summarize the current problems, your key steps for addressing them and your main findings in about 100-300 words.
-- **Introduction**: Present the problem, challenges, and potential solutions based on existing literature.  
-- **Methods**: Describe your dataset(s), outline the baseline approach using an off-the-shelf segmentation model and define the enhancements you made for the specific benchmarks you participated.  
-- **Results**: Show and describe your results based on performance metrics and examples. Use figures and tables to support your findings. 
-- **Discussion**: Discuss the impact and potential of your main findings. Also discuss limitations and suggest future improvements.
-
-> **Submission**: Submit your paper as a PDF document via **Canvas**.
-
-The paper will be graded based on clarity, experimental design, insight, and originality.  
-
-### 2. Code repository  
-Push all relevant code to a **public GitHub repository** with a README.md file detailing:  
-- Required libraries and installation instructions.  
-- Steps to run your code.  
-- Your Codalab username and TU/e email address for correct mapping across systems.  
-
-### 3. Challenge platform submissions  
-The Cityscape Challenge will be hosted on a **dedicated course compute platform** (instead of Codalab used in previous years).
-
-You will receive clear, step-by-step instructions for making submission once the final assignment begins.
+## Repository Structure
+```bash
+Final assignment
+├── deeplab/                # External DeepLabV3+ implementation
+│   └── network/
+│       └── modeling.py
+│       └── ...
+│   └── ...
+├── .gitignore
+├── Dockerfile
+├── download_docker_and_data.sh 
+├── jobscript_slurm.sh
+├── main.double.sh
+├── main_deeplab_only.sh
+├── main_ood_only.sh
+├── main.sh
+├── model_ood_v1.py         # First version of OOD model (DeepLabV3+ + OOD head (no MSP))
+├── model_ood.py            # Final model for OOD detection (DeepLabV3+ + OOD head with MSP)
+├── model_unet.py           # U-Net model
+├── model.py                # Final DeepLabV3+ model
+├── predict_ood.py          # Inference script (segmentation + OOD)
+├── predict.py              # Inference script (segmentation only)
+├── README-x.md             # Given type specific README files (not very necessary unless you want details)
+├── README.md               # This file
+├── train_base.py           # Training script for baseline segmentation models
+├── train_ood.py            # Training script for full model (DeepLabV3+ and VAE head)
+├── train_v2.py             # Training script for second version segmentation model (addition of RandomCrop)
+└── train.py                # Training script for last version segmentation model (RandomCrop + Dice + LR Scheduler)
+```
 
 ---
 
-## Grading and Bonus Points  
+## Installation (on HPC Cluster - SLURM)
 
-The final assignment accounts for **50% of your course grade**. Additionally, bonus points are available:  
-
-- **Top 3 in any benchmark**: +0.25 to your final assignment grade.  
-- **Best performance in any benchmark**: +0.5 to your final assignment grade.  
-
-For example, achieving the best performance in 'Peak Performance' and a top 3 spot in another benchmark will earn you a 0.75 bonus.  
-
-> **Note**: The bonus is optional. A great report with an innovative solution that doesn't rank highly can still earn a perfect score (10).  
+All training experiments were performed on a high-performance computing (HPC) cluster using SLURM and containerized execution.
 
 ---
 
-## Important Notes  
+## Step 1: Clone Repository on the Cluster
 
-- Ensure a proper **train-validation split** of the CityScapes dataset.  
-- Training your model may take multiple hours; plan accordingly.  
-- Use ideas from literature but remember to **cite all sources**. Plagiarism will not be tolerated.  
-- For questions or challenges, use the **Discussions** section of this repository to collaborate with peers.  
+Create a Personal Access Token (PAT) on GitHub:
 
----
+- Go to: GitHub Settings → Developer Settings → Personal Access Tokens (PAT) → Tokens (classic)
 
-We wish you the best of luck in this challenge and are excited to see the innovative solutions you develop! 🚀
+Then log into the cluster and clone your repository:
+
+```bash
+git clone https://<PAT>@github.com/liyaboro/NNCV.git
+cd NNCV
+```
+Replace `<PAT>` with your Personal Access Token.
+Keep the repo up to date using 
+```bash
+git pull
+```
+
+>Note: Editing Code on the Cluster
+>You can edit code directly on the cluster using VSCode:
+>- Install Remote – SSH extension
+>- Connect to the cluster via SSH
+>- Open the repository folder
+>- Edit, commit, and push changes
+
+>This avoids syncing between local and remote environments.
+
+## Step 2: Download Data and Container (One-Time Setup)
+The training data and container are hosted externally.
+
+Run the download script once using SLURM:
+
+```bash
+chmod +x download_docker_and_data.sh
+sbatch download_docker_and_data.sh
+```
+
+After the job finishes, you should see:
+- a `data/` directory
+- a `container.sif` file
+
+## Step 3: Configure Environment Variables and Dependencies
+
+All experiments are executed inside a pre-built Singularity container (`container.sif`) provided with the assignment.
+
+This container already includes all required dependencies (e.g. PyTorch, CUDA, etc.), so no additional installation via `requirements.txt` is necessary.
+
+If you wish to run the code outside the container, you will need to manually install the required dependencies.
+
+If running outside the container, the following dependencies are required:
+```bash
+wandb
+torch
+torchvision
+numpy
+pillow
+tqdm
+matplotlib
+scikit-learn
+pyyaml
+```
+
+To configure the environment variables, edit the .env file:
+```bash
+nano .env
+```
+Set required variables:
+```bash
+WANDB_API_KEY=<your_api_key>
+WANDB_DIR=/home/<username>/wandb
+```
+These are used for experiment tracking.
+
+## Step 4: Download pre-trained DeepLabV3+ checkpoint 
+
+The pre-trained checkpoint that was used was downloaded on the following GitHub page: https://github.com/VainF/DeepLabV3Plus-Pytorch
+
+Go to:
+Results > Performance on Cityscapes (19 classes, 1024 x 2048) > DeepLabV3Plus-ResNet101 (click on the link).
+
+Place the checkpoint file in the checkpoints/ folder (not inside an extra subfolder!)
+
+
+## Step 5: Submit Training Job
+
+Make the SLURM script executable and submit:
+```bash
+chmod +x jobscript_slurm.sh #only the first time
+sbatch jobscript_slurm.sh
+```
+This script launches training inside the container using `main.sh` (entry point). Depending on which file you rename as `main.sh`, you will use different training files.
+- `main_deeplab_only.sh`: trains only the segmentation model using `train_ood.py` (but if you remove --mode argument you can use `train.py`)
+- `main_double.sh`: trains both segmentation model and then OOD on top of the just trained seg model.
+- `main_deeplab_only.sh`: trains only the VAE head on top of a defained pre-trained seg model using `train_ood.py`
+- `main_tresh.sh`: resets the threshold of the OOD detection using the final version
+
+>Don't forget to adapt the `jobscript_slurm.sh` file to match the time you need. Training the segmentation model takes up to 2:30 hours for 50 epochs. Training the VAE head takes up to 00:30 minutes for 40 epochs. Threshold recomputation takes less than a minute. Always add some buffer time to ensure you are done training when it stops.
+
+## Step 6: Evaluation
+
+After training the model gets saved on the cluster into the `checkpoints/` folder, inside a subfolder names like the experiment-id.
+OOD thresholds are computed automatically and saved into the .pt checkpoint file.
+
+From there you can choose the model you want to conitnue with, and follow the instructions on the `README-Submission.md`, on how to submit the model to the server for evaluation on the test set.
