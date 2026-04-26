@@ -1,3 +1,6 @@
+# I you are looking for the README.md file for my Assignment/Report - Please look on the README.md file inside of the Final assignment folder. Sorry for the confusion.
+
+
 # 5LSM0: Neural Networks for Computer Vision
 
 Welcome to the repository for **5LSM0: Neural Networks for Computer Vision**, a course offered by the Department of Electrical Engineering at Eindhoven University of Technology. This course is hosted by the [Architectures for Relaible Image Analysis Lab](https://github.com/TUE-ARIA).
